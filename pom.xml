@@ -6,12 +6,12 @@
     <parent>
         <groupId>io.github.technic47</groupId>
         <artifactId>shop-spring-boot-starter</artifactId>
-        <version>1.0.12</version>
+        <version>1.0.13</version>
     </parent>
 
     <groupId>io.github.technic47</groupId>
     <artifactId>auth</artifactId>
-    <version>1.0.0</version>
+    <version>1.0.1</version>
     <name>Auth_module_keycloak</name>
     <description>Auth_module_keycloak</description>
     <url>https://github.com/Technic47/Shop_auth_keycloak</url>

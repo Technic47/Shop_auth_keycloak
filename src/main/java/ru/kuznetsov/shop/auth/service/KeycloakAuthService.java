@@ -1,6 +1,7 @@
 package ru.kuznetsov.shop.auth.service;
 
 import com.nimbusds.jwt.JWT;
+import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.JWTParser;
 import lombok.RequiredArgsConstructor;
 import org.keycloak.OAuth2Constants;
@@ -21,11 +22,13 @@ import org.springframework.web.client.RestTemplate;
 import ru.kuznetsov.shop.represent.contract.auth.AuthContract;
 import ru.kuznetsov.shop.represent.dto.auth.LoginPasswordDto;
 import ru.kuznetsov.shop.represent.dto.auth.TokenDto;
+import ru.kuznetsov.shop.represent.dto.auth.UserDto;
 
 import java.text.ParseException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -36,6 +39,11 @@ public class KeycloakAuthService implements AuthContract {
     private static final String OPENID_CONNECT = "/openid-connect";
     private static final String TOKEN = "/token";
     private static final String INTROSPECT = "/introspect";
+
+    private static final String USER_ID_CLAIM = "sub";
+    private static final String USER_USERNAME_CLAIM = "preferred_username";
+    private static final String USER_EMAIL_CLAIM = "email";
+    private static final String USER_EMAIL_VERIFIED_CLAIM = "email_verified";
 
     @Value("${keycloak.serverUrl}")
     private String serverUrl;
@@ -106,6 +114,24 @@ public class KeycloakAuthService implements AuthContract {
                     .filter(role -> role.startsWith("ROLE_"))
                     .map(role -> role.substring(5))
                     .toList();
+        } catch (ParseException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    @Override
+    public UserDto getUserInfo(String token) {
+        try {
+            JWTClaimsSet claimsSet = JWTParser
+                    .parse(token.replace("Bearer ", ""))
+                    .getJWTClaimsSet();
+
+            return UserDto.builder()
+                    .id(UUID.fromString((String) claimsSet.getClaim(USER_ID_CLAIM)))
+                    .username((String) claimsSet.getClaim(USER_USERNAME_CLAIM))
+                    .email((String) claimsSet.getClaim(USER_EMAIL_CLAIM))
+                    .emailVerified(Boolean.valueOf((String) claimsSet.getClaim(USER_EMAIL_VERIFIED_CLAIM)))
+                    .build();
         } catch (ParseException e) {
             throw new RuntimeException(e);
         }
