@@ -130,7 +130,7 @@ public class KeycloakAuthService implements AuthContract {
                     .id(UUID.fromString((String) claimsSet.getClaim(USER_ID_CLAIM)))
                     .username((String) claimsSet.getClaim(USER_USERNAME_CLAIM))
                     .email((String) claimsSet.getClaim(USER_EMAIL_CLAIM))
-                    .emailVerified(Boolean.valueOf((String) claimsSet.getClaim(USER_EMAIL_VERIFIED_CLAIM)))
+                    .emailVerified((Boolean) claimsSet.getClaim(USER_EMAIL_VERIFIED_CLAIM))
                     .build();
         } catch (ParseException e) {
             throw new RuntimeException(e);
