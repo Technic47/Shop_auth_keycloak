@@ -23,12 +23,10 @@ import ru.kuznetsov.shop.represent.contract.auth.AuthContract;
 import ru.kuznetsov.shop.represent.dto.auth.LoginPasswordDto;
 import ru.kuznetsov.shop.represent.dto.auth.TokenDto;
 import ru.kuznetsov.shop.represent.dto.auth.UserDto;
+import ru.kuznetsov.shop.represent.dto.auth.UserRepresentationDto;
 
 import java.text.ParseException;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 
 @Service
 @RequiredArgsConstructor
@@ -39,6 +37,9 @@ public class KeycloakAuthService implements AuthContract {
     private static final String OPENID_CONNECT = "/openid-connect";
     private static final String TOKEN = "/token";
     private static final String INTROSPECT = "/introspect";
+    private static final String REGISTRATION = "/registration";
+    private static final String USERS = "/users";
+    private static final String ADMIN = "/admin";
 
     private static final String USER_ID_CLAIM = "sub";
     private static final String USER_USERNAME_CLAIM = "preferred_username";
@@ -135,6 +136,83 @@ public class KeycloakAuthService implements AuthContract {
         } catch (ParseException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    //ToDo добавить вставку ролей в пользователя
+    @Override
+    public String createUser(UserRepresentationDto newUser) {
+        var request = formHttpEntity(newUser);
+        RestTemplate restTemplate = new RestTemplate();
+        String path = serverUrl + ADMIN + REALMS + "/" + realm + USERS;
+
+        ResponseEntity<Map> response = restTemplate.postForEntity(
+                path,
+                request,
+                Map.class
+        );
+
+        String createdUserId;
+
+        if (response.getStatusCode().is2xxSuccessful()) {
+            createdUserId = getNewUserIdFromResponse(response);
+        } else throw new RuntimeException("Unexpected response code " + response.getStatusCode());
+
+        return createdUserId;
+    }
+
+    private HttpEntity formHttpEntity(UserRepresentationDto newUser) {
+        Map<String, String> serviceAccessToken = getServiceAccessToken();
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setBearerAuth(serviceAccessToken.get("access_token"));
+
+        Map<String, Object> introspectParams = new HashMap<>();
+        introspectParams.put("username", newUser.getUsername());
+        introspectParams.put("enabled", newUser.getEnabled());
+        introspectParams.put("email", newUser.getEmail());
+        introspectParams.put("firstName", newUser.getFirstName());
+        introspectParams.put("lastName", newUser.getLastName());
+
+        Map<String, Object> password = new HashMap<>();
+        password.put("type", "password");
+        password.put("value", newUser.getPassword());
+        password.put("temporary", false);
+
+        introspectParams.put("credentials", Collections.singletonList(password));
+
+        return new HttpEntity<>(introspectParams, headers);
+    }
+
+    private Map<String, String> getServiceAccessToken() {
+        String introspectSubPath = REALMS + "/" + realm + PROTOCOL + OPENID_CONNECT + TOKEN;
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
+
+        MultiValueMap<String, String> introspectParams = new LinkedMultiValueMap<>();
+        introspectParams.add("grant_type", "client_credentials");
+        introspectParams.add("client_id", clientId);
+        introspectParams.add("client_secret", clientSecret);
+
+        var request = new HttpEntity<>(introspectParams, headers);
+        RestTemplate restTemplate = new RestTemplate();
+
+        ResponseEntity<Map> response = restTemplate.postForEntity(
+                serverUrl + introspectSubPath,
+                request,
+                Map.class
+        );
+
+        return response.getBody();
+    }
+
+    private String getNewUserIdFromResponse(ResponseEntity<Map> response) {
+        List<String> location = response.getHeaders().get("Location");
+        if (location != null && !location.isEmpty()) {
+            String[] split = location.get(0).split("/");
+            return split[split.length - 1];
+        } else throw new RuntimeException();
     }
 
     private Keycloak getConfidentialClient(LoginPasswordDto authHeader) {

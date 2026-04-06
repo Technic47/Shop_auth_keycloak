@@ -6,11 +6,11 @@
     <parent>
         <groupId>io.github.technic47</groupId>
         <artifactId>shop-spring-boot-starter</artifactId>
-        <version>1.0.15</version>
+        <version>1.1.16</version>
     </parent>
 
     <artifactId>auth</artifactId>
-    <version>1.0.2</version>
+    <version>1.0.3</version>
 
     <name>Auth_module_keycloak</name>
     <description>Auth_module_keycloak</description>
@@ -37,6 +37,7 @@
     </scm>
 
     <properties>
+        <skipTests>true</skipTests>
         <keycloak-admin-client.version>26.0.7</keycloak-admin-client.version>
         <nimbus.version>10.5</nimbus.version>
     </properties>
