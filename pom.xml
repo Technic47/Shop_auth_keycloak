@@ -6,11 +6,11 @@
     <parent>
         <groupId>io.github.technic47</groupId>
         <artifactId>shop-spring-boot-starter</artifactId>
-        <version>1.1.16</version>
+        <version>1.1.17</version>
     </parent>
 
     <artifactId>auth</artifactId>
-    <version>1.0.3</version>
+    <version>1.0.4</version>
 
     <name>Auth_module_keycloak</name>
     <description>Auth_module_keycloak</description>

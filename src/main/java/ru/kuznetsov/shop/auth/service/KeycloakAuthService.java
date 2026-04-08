@@ -40,6 +40,7 @@ public class KeycloakAuthService implements AuthContract {
     private static final String REGISTRATION = "/registration";
     private static final String USERS = "/users";
     private static final String ADMIN = "/admin";
+    private static final String ROLES = "/roles";
 
     private static final String USER_ID_CLAIM = "sub";
     private static final String USER_USERNAME_CLAIM = "preferred_username";
@@ -49,18 +50,26 @@ public class KeycloakAuthService implements AuthContract {
     @Value("${keycloak.serverUrl}")
     private String serverUrl;
     @Value("${keycloak.realm}")
-    private String realm;
+    private String shopRealm;
+    private String adminRealm = "master";
+    @Value("${keycloak.username}")
+    private String adminRealmLogin;
+    @Value("${keycloak.password}")
+    private String adminRealmPassword;
     @Value("${keycloak.clientId}")
     private String clientId;
     @Value("${keycloak.clientSecret}")
     private String clientSecret;
+    @Value("${keycloak.cli-admin.clientId}")
+    private String cliClientId;
+    @Value("${keycloak.cli-admin.clientSecret}")
+    private String cliClientSecret;
 
     Logger logger = LoggerFactory.getLogger(KeycloakAuthService.class);
 
     public TokenDto getToken(LoginPasswordDto authHeader) {
-        Keycloak client = getConfidentialClient(authHeader);
         try {
-            AccessTokenResponse accessToken = client.tokenManager().getAccessToken();
+            AccessTokenResponse accessToken = getAccessToken(getConfidentialClientForUser(authHeader));
             return TokenDto.builder()
                     .token(accessToken.getToken())
                     .expiresIn(accessToken.getExpiresIn())
@@ -81,7 +90,7 @@ public class KeycloakAuthService implements AuthContract {
 
     @Override
     public Boolean isTokenValid(String token) {
-        String introspectSubPath = REALMS + "/" + realm + PROTOCOL + OPENID_CONNECT + TOKEN + INTROSPECT;
+        String introspectSubPath = REALMS + "/" + shopRealm + PROTOCOL + OPENID_CONNECT + TOKEN + INTROSPECT;
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
@@ -143,7 +152,7 @@ public class KeycloakAuthService implements AuthContract {
     public String createUser(UserRepresentationDto newUser) {
         var request = formHttpEntity(newUser);
         RestTemplate restTemplate = new RestTemplate();
-        String path = serverUrl + ADMIN + REALMS + "/" + realm + USERS;
+        String path = serverUrl + ADMIN + REALMS + "/" + shopRealm + USERS;
 
         ResponseEntity<Map> response = restTemplate.postForEntity(
                 path,
@@ -160,17 +169,22 @@ public class KeycloakAuthService implements AuthContract {
         return createdUserId;
     }
 
+    private AccessTokenResponse getAccessToken(Keycloak client) {
+        return client.tokenManager().getAccessToken();
+    }
+
     private HttpEntity formHttpEntity(UserRepresentationDto newUser) {
-        Map<String, String> serviceAccessToken = getServiceAccessToken();
+        String serviceAccessToken = getServiceAccessToken();
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.setBearerAuth(serviceAccessToken.get("access_token"));
+        headers.setBearerAuth(serviceAccessToken);
 
         Map<String, Object> introspectParams = new HashMap<>();
         introspectParams.put("username", newUser.getUsername());
         introspectParams.put("enabled", newUser.getEnabled());
         introspectParams.put("email", newUser.getEmail());
+        introspectParams.put("emailVerified", newUser.getEmailVerified());
         introspectParams.put("firstName", newUser.getFirstName());
         introspectParams.put("lastName", newUser.getLastName());
 
@@ -184,27 +198,8 @@ public class KeycloakAuthService implements AuthContract {
         return new HttpEntity<>(introspectParams, headers);
     }
 
-    private Map<String, String> getServiceAccessToken() {
-        String introspectSubPath = REALMS + "/" + realm + PROTOCOL + OPENID_CONNECT + TOKEN;
-
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_FORM_URLENCODED);
-
-        MultiValueMap<String, String> introspectParams = new LinkedMultiValueMap<>();
-        introspectParams.add("grant_type", "client_credentials");
-        introspectParams.add("client_id", clientId);
-        introspectParams.add("client_secret", clientSecret);
-
-        var request = new HttpEntity<>(introspectParams, headers);
-        RestTemplate restTemplate = new RestTemplate();
-
-        ResponseEntity<Map> response = restTemplate.postForEntity(
-                serverUrl + introspectSubPath,
-                request,
-                Map.class
-        );
-
-        return response.getBody();
+    private String getServiceAccessToken() {
+        return getAccessToken(getCliClient()).getToken();
     }
 
     private String getNewUserIdFromResponse(ResponseEntity<Map> response) {
@@ -215,15 +210,29 @@ public class KeycloakAuthService implements AuthContract {
         } else throw new RuntimeException();
     }
 
-    private Keycloak getConfidentialClient(LoginPasswordDto authHeader) {
+    private Keycloak getConfidentialClientForUser(LoginPasswordDto authHeader) {
+        return getConfidentialClient(shopRealm, authHeader.getLogin(), authHeader.getPassword());
+    }
+
+    private Keycloak getConfidentialClient(String realm, String login, String pass) {
         return KeycloakBuilder.builder()
                 .grantType(OAuth2Constants.PASSWORD)
                 .serverUrl(serverUrl)
                 .realm(realm)
                 .clientId(clientId)
                 .clientSecret(clientSecret)
-                .username(authHeader.getLogin())
-                .password(authHeader.getPassword())
+                .username(login)
+                .password(pass)
+                .build();
+    }
+
+    private Keycloak getCliClient() {
+        return KeycloakBuilder.builder()
+                .serverUrl(serverUrl) // ваш URL
+                .realm(shopRealm)  // ваш реалм
+                .grantType(OAuth2Constants.CLIENT_CREDENTIALS) // используем Client ID + Secret
+                .clientId(cliClientId)
+                .clientSecret(cliClientSecret)
                 .build();
     }
 }
